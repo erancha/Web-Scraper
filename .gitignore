@@ -1,0 +1,13 @@
+# Virtual environment
+venv/
+
+# Environment variables (contains secrets)
+.env
+
+# Runtime state
+state.*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

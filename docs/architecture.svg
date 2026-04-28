@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg width="920" height="360" viewBox="0 0 920 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Scraper architecture diagram">
+  <defs>
+    <style>
+      .box { fill: #0b1220; stroke: #334155; stroke-width: 1.5; rx: 12; }
+      .title { fill: #e2e8f0; font: 600 16px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+      .text { fill: #cbd5e1; font: 13px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+      .muted { fill: #94a3b8; font: 12px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }
+      .arrow { stroke: #38bdf8; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+      .arrow2 { stroke: #a78bfa; stroke-width: 2; fill: none; marker-end: url(#arrowhead2); }
+    </style>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrowhead2" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#a78bfa"/>
+    </marker>
+  </defs>
+  <rect class="box" x="40" y="45" width="191.922" height="157.475" style=""/>
+  <text class="title" x="60" y="78" style="white-space: pre;">External sources</text>
+  <text class="text" x="60" y="104" style="white-space: pre;">ESPN API (JSON)</text>
+  <text class="text" x="60" y="126" style="white-space: pre;">Ynet website (HTML)</text>
+  <text class="text" x="60" y="148" style="white-space: pre;">Ynet website (HTML)</text>
+  <text class="muted" x="60" y="192" style="white-space: pre;">consumed by providers/*</text>
+  <rect class="box" x="40" y="222.335" width="191.922" height="97.665" style=""/>
+  <text class="title" x="60" y="242" style="white-space: pre;">IMAP Inbox</text>
+  <text class="text" x="60" y="268" style="white-space: pre;">poll unread emails</text>
+  <text class="text" x="60" y="290" style="white-space: pre;">extract URLs</text>
+  <text class="muted" x="60" y="312" style="white-space: pre;">Gmail / IMAP</text>
+  <rect class="box" x="350" y="40" width="260" height="130"/>
+  <text class="title" x="370" y="72" style="white-space: pre;">scraper.py</text>
+  <text class="text" x="370" y="98" style="white-space: pre;">poll / parse / detect completed</text>
+  <text class="text" x="370" y="120" style="white-space: pre;">render HTML summary</text>
+  <text class="text" x="370" y="142" style="white-space: pre;">send email</text>
+  <rect class="box" x="350" y="210" width="260" height="110"/>
+  <text class="title" x="370" y="242" style="white-space: pre;">providers/*</text>
+  <text class="text" x="370" y="268" style="white-space: pre;">Provider-specific fetch + normalize</text>
+  <text class="muted" x="370" y="292" style="white-space: pre;">e.g. espn_nba.py</text>
+  <rect class="box" x="700" y="40" width="180" height="110"/>
+  <text class="title" x="720" y="72" style="white-space: pre;">SMTP</text>
+  <text class="text" x="720" y="98" style="white-space: pre;">HTML email delivery</text>
+  <text class="muted" x="720" y="122" style="white-space: pre;">Configured via .env</text>
+  <rect class="box" x="700" y="220" width="180" height="100"/>
+  <text class="title" x="720" y="252" style="white-space: pre;">Local state</text>
+  <text class="text" x="720" y="278" style="white-space: pre;">state.&lt;provider-key&gt;.json</text>
+  <text class="muted" x="720" y="302" style="white-space: pre;">dedupe finished sources</text>
+  <path class="arrow" d="M 235.006 115 C 282.92 115 302.086 115 350 115" style=""/>
+  <text class="muted" x="237.81" y="105.514" style="white-space: pre; font-size: 12px;">HTTP (JSON/HTML)</text>
+  <path class="arrow" d="M 235.006 265 C 283.134 265 302.386 131.961 350.514 131.961" style=""/>
+  <text class="muted" x="245" y="155" style="white-space: pre; font-size: 12px; transform-box: fill-box; transform-origin: 50% 50%;" transform="matrix(0.508449, -0.861092, 0.861092, 0.508449, -23.642495, 37.519513)">IMAP (unseen emails)</text>
+  <path class="arrow2" d="M480 170 C480 190, 480 195, 480 210"/>
+  <text class="muted" x="492" y="198" style="white-space: pre;">provider interface</text>
+  <path class="arrow" d="M610 85 C650 85, 660 85, 700 85"/>
+  <text class="muted" x="615.151" y="75" style="white-space: pre; font-size: 12px;">email payload</text>
+  <path class="arrow" d="M610 270 C650 270, 660 270, 700 270"/>
+  <text class="muted" x="626" y="260" style="white-space: pre;">read/write</text>
+</svg>
