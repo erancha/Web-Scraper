@@ -127,17 +127,14 @@ fi
 
 ENV_FILE_ARG=""
 if [ -f "$ENV_FILE" ]; then
-  ENV_FILE_ARG="--env-file $ENV_FILE"
+  ENV_FILE_ARG="--env-file"
 fi
-
-STATE_ENV_ARG="-e STATE_FILE=$STATE_PATH_IN_CONTAINER"
-STATE_VOL_ARG="-v $STATE_VOLUME:/data"
 
 docker run -d \
   --name "$CONTAINER_NAME" \
   --restart "$RESTART_POLICY" \
-  $ENV_FILE_ARG \
-  $STATE_ENV_ARG \
-  $STATE_VOL_ARG \
+  $ENV_FILE_ARG ${ENV_FILE_ARG:+"$ENV_FILE"} \
+  -e "STATE_FILE=$STATE_PATH_IN_CONTAINER" \
+  -v "$STATE_VOLUME:/data" \
   "$FULL_IMAGE" \
   python scraper.py "$MODE" $EXTRA_ARGS

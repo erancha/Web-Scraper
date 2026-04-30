@@ -75,12 +75,15 @@ State is stored in a named Docker volume (`scraper_state`) and persists across r
 
 ## Environment
 
-Copy `.env.example` to `.env`. Key variables:
+Copy `.env.example` to `.env`. Any variable can be overridden per-provider (e.g., `EMAIL_TO__ESPN_NBA`).
 
 | Variable | Description |
 |---|---|
+| `SMTP_HOST` / `SMTP_PORT` | Gmail SMTP (defaults: `smtp.gmail.com`, 587) |
 | `SMTP_USER` / `SMTP_PASS` | Gmail credentials (App Password required) |
-| `EMAIL_TO` | Recipient(s), comma-separated; supports `EMAIL_TO__<PROVIDER>` overrides |
-| `CHECK_INTERVAL` | Default poll interval in seconds (default: 300); supports per-provider override |
+| `EMAIL_TO` | Recipient(s), comma-separated; supports provider overrides |
+| `CHECK_INTERVAL` | Poll interval in seconds (default: 300); supports provider overrides |
+| `STATE_FILE` | State file path (default: `state.json`; per-provider files auto-created) |
 | `IMAP_*` / `EMAIL_POLL_*` | Required only for `email-url-summary` provider |
 | `LOG_LEVEL` | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` |
+| `DOCKERHUB_*` | Registry auth (only needed with `--dockerhub` flag) |
