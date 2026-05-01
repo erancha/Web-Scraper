@@ -77,6 +77,7 @@ class EspnNba(Provider):
         """Parse the ESPN JSON into a flat list of game dicts."""
         games = []
         events = data.get("events", [])
+        season_type = data.get("season", {}).get("type", 2)  # 2=regular, 3=playoffs
         for event in events:
             game: dict = {"id": event["id"], "name": event.get("name", "")}
 
@@ -105,6 +106,12 @@ class EspnNba(Provider):
             )
             game["clock"] = status_obj.get("displayClock", "")
             game["period"] = status_obj.get("period", 0)
+
+            # Playoff series
+            game["is_playoff"] = season_type == 3
+            series_obj = competition.get("series", {})
+            game["series_summary"] = series_obj.get("summary", "")
+            game["series_title"] = series_obj.get("title", "")
 
             # Broadcast
             broadcasts = competition.get("broadcasts", [])
@@ -424,6 +431,12 @@ class EspnNba(Provider):
         if home:
             lines.append(team_line(home, "Home"))
 
+        if g.get("is_playoff") and g.get("series_summary"):
+            series_label = g["series_summary"]
+            if g.get("series_title"):
+                series_label = f"{g['series_title']} – {series_label}"
+            lines.append(f"  Series: {series_label}")
+
         if g.get("venue"):
             loc = f"{g['venue']}, {g['location']}" if g["location"] else g["venue"]
             lines.append(f"  Venue: {loc}")
@@ -464,7 +477,27 @@ class EspnNba(Provider):
         - Uses `g['date']` and, when tz-aware, converts it to the machine's **local time zone** for display in the email.
         - When tz-naive or unparsable, falls back to displaying the raw value.
         """
-        rows = []
+        def leaders_inline(team: dict) -> str:
+            """Render a team's leader stats as a single-line string for the email."""
+            parts = []
+            for ldr in team.get("leaders", []):
+                parts.append(
+                    f"{ldr['player']} – "
+                    f"{ldr['category']}: {ldr['value']}"
+                )
+            return " | ".join(parts)
+
+        _HEADER_ROW = (
+            "<tr style='background:#1a1a2e;color:#fff;'>"
+            "<th>Time</th><th>Away</th><th>Score</th><th>Score</th>"
+            "<th>Home</th><th>Venue</th><th>Box Score</th></tr>"
+        )
+        _TABLE_STYLE = (
+            "border-collapse:collapse;font-family:Arial,sans-serif;"
+            "border:3px solid #1a1a2e;"
+        )
+
+        game_tables = []
         for g in items:
             away = next((t for t in g["teams"] if t["homeAway"] == "away"), None)
             home = next((t for t in g["teams"] if t["homeAway"] == "home"), None)
@@ -482,16 +515,6 @@ class EspnNba(Provider):
             recap_url = g.get("recapUrl") or ""
             recap_summary = (g.get("recapSummary") or "").replace("<", "&lt;").replace(">", "&gt;")
 
-            def leaders_inline(team: dict) -> str:
-                """Render a team's leader stats as a single-line string for the email."""
-                parts = []
-                for ldr in team.get("leaders", []):
-                    parts.append(
-                        f"{ldr['player']} \u2013 "
-                        f"{ldr['category']}: {ldr['value']}"
-                    )
-                return " | ".join(parts)
-
             away_leaders = leaders_inline(away)
             home_leaders = leaders_inline(home)
             leaders_row_html = ""
@@ -505,7 +528,17 @@ class EspnNba(Provider):
                     "</td></tr>"
                 )
 
-            rows.append(
+            series_row_html = ""
+            if g.get("is_playoff") and g.get("series_summary"):
+                series_label = g["series_summary"]
+                if g.get("series_title"):
+                    series_label = f"{g['series_title']} – {series_label}"
+                series_row_html = (
+                    f"<tr><td colspan='7' style='font-size:12px;font-style:italic;color:#555'>"
+                    f"{series_label}</td></tr>"
+                )
+
+            main_row = (
                 f"<tr>"
                 f"<td>{time_str}</td>"
                 f"<td>{away['name']} ({away['record']})</td>"
@@ -514,25 +547,31 @@ class EspnNba(Provider):
                 f"<td>{home['name']} ({home['record']})</td>"
                 f"<td>{g.get('venue', '')}<br><span style='color:gray;font-size:11px'>"
                 f"({home['abbreviation']} home)</span></td>"
-                f"<td><a href='{box_score_url}'>Box Score</a>" + (f"<br><a href='{recap_url}'>Recap</a>" if recap_url else "") + "</td>"
-                f"</tr>"
-                + (f"<tr><td colspan='7' dir='rtl' style='direction:rtl;text-align:right;font-size:13px;line-height:1.35;color:#222'>{recap_summary}</td></tr>" if recap_summary else "")
+                f"<td><a href='{box_score_url}'>Box Score</a>"
+                + (f"<br><a href='{recap_url}'>Recap</a>" if recap_url else "")
+                + "</td></tr>"
+            )
+            recap_row_html = (
+                f"<tr><td colspan='7' dir='rtl' style='direction:rtl;text-align:right;"
+                f"font-size:13px;line-height:1.35;color:#222'>{recap_summary}</td></tr>"
+                if recap_summary else ""
+            )
+            game_tables.append(
+                f"<table border='1' cellpadding='6' cellspacing='0' style='{_TABLE_STYLE}'>"
+                + _HEADER_ROW
+                + main_row
+                + series_row_html
+                + recap_row_html
                 + leaders_row_html
+                + "</table>"
             )
 
-        games_table = (
-            "<table border='1' cellpadding='6' cellspacing='0' "
-            "style='border-collapse:collapse;font-family:Arial,sans-serif;'>"
-            "<tr style='background:#1a1a2e;color:#fff;'>"
-            "<th>Time</th><th>Away</th><th>Score</th><th>Score</th>"
-            "<th>Home</th><th>Venue</th><th>Box Score</th></tr>"
-            + "\n".join(rows)
-            + "</table>"
-        )
+        games_table = "<br>".join(game_tables)
 
         standings_section = ""
+        is_playoff_season = any(g.get("is_playoff") for g in items)
         standings_data = getattr(self, "_standings_data", None)
-        if standings_data:
+        if standings_data and not is_playoff_season:
             standings = self._parse_standings(standings_data)
             if standings and (standings.get("conferences") or []):
                 season_label = standings.get("seasonDisplayName", "")
