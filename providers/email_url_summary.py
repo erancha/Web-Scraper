@@ -38,6 +38,7 @@ class EmailUrlSummary(Provider):
         - EMAIL_POLL_FROM: only process emails from this address (optional).
         - EMAIL_POLL_MARK_SEEN: when true, mark processed emails as seen (default: true).
         - EMAIL_POLL_MAX_EMAILS: max number of emails to process per fetch (default: 10).
+        - EMAIL_URL_IGNORE_DOMAINS: comma-delimited host prefixes/domains to ignore when extracting URLs.
 
     Notes:
         - Items are created per-URL. De-duplication is handled by the agent loop via item IDs.
@@ -74,6 +75,7 @@ class EmailUrlSummary(Provider):
         max_emails = int((os.getenv("EMAIL_POLL_MAX_EMAILS") or "10").strip() or 10)
 
         messages: list[dict] = []
+        ignored_email_uids = self._ignored_email_uids()
 
         imap = imaplib.IMAP4_SSL(host=host, port=port)
         try:
@@ -95,7 +97,11 @@ class EmailUrlSummary(Provider):
 
             # Process oldest-first for stability.
             for uid in uids[:max_emails]:
-                typ, msg_data = imap.fetch(uid, "(RFC822)")
+                uid_str = uid.decode(errors="ignore") if isinstance(uid, (bytes, bytearray)) else str(uid)
+                if uid_str in ignored_email_uids:
+                    continue
+
+                typ, msg_data = imap.fetch(uid, "(BODY.PEEK[])")
                 if typ != "OK" or not msg_data or not msg_data[0]:
                     continue
 
@@ -104,7 +110,12 @@ class EmailUrlSummary(Provider):
                 subject = self._decode_mime_header(msg.get("Subject", ""))
                 from_addr = self._extract_addr(msg.get("From", ""))
                 body_text = self._extract_best_effort_body_text(msg)
-                urls = self._extract_urls(body_text)
+                urls, has_ignored_urls = self._extract_urls(body_text)
+
+                if has_ignored_urls:
+                    self._remember_ignored_email_uid(uid_str)
+                    logger.info("[%s] Leaving email unread because it contains URL(s) ignored by EMAIL_URL_IGNORE_DOMAINS: uid=%s", self.name, uid_str)
+                    continue
 
                 if not urls:
                     if mark_seen:
@@ -310,21 +321,27 @@ class EmailUrlSummary(Provider):
             return cleaned
         return cleaned[:500].rstrip() + "..."
 
-    def _extract_urls(self, text: str) -> list[str]:
-        """Extract URLs from arbitrary text."""
+    def _extract_urls(self, text: str) -> tuple[list[str], bool]:
+        """Extract URLs from arbitrary text and report whether any were ignored."""
         if not text:
-            return []
+            return [], False
         # Basic URL regex: good enough for email bodies.
         found = re.findall(r"https?://[^\s<>'\"]+", text)
+        ignored_domains = self._ignored_url_domains()
         urls: list[str] = []
         seen: set[str] = set()
+        has_ignored_urls = False
         for u in found:
             u = u.strip().rstrip(")].,;\"")
             if not u or u in seen:
                 continue
+            if self._is_ignored_url(u, ignored_domains):
+                has_ignored_urls = True
+                logger.info("[%s] Ignoring URL due to EMAIL_URL_IGNORE_DOMAINS: %s", self.name, u)
+                continue
             seen.add(u)
             urls.append(u)
-        return urls
+        return urls, has_ignored_urls
 
     def _extract_best_effort_body_text(self, msg: email.message.Message) -> str:
         """Extract a best-effort plain text body from an email message."""
@@ -399,6 +416,60 @@ class EmailUrlSummary(Provider):
             return host or url
         except Exception:
             return url
+
+    def _ignored_url_domains(self) -> tuple[str, ...]:
+        """Return ignored URL domain prefixes in a normalized form, e.g. ' LinkedIn, .GlassDoor ' -> ('linkedin', 'glassdoor')."""
+        raw = (os.getenv("EMAIL_URL_IGNORE_DOMAINS") or "").split("#", 1)[0].strip()
+        if not raw:
+            return ()
+
+        values: list[str] = []
+        for part in raw.split(","):
+            value = part.strip().lower().lstrip(".")
+            if value:
+                values.append(value)
+        return tuple(values)
+
+    def _is_ignored_url(self, url: str, ignored_domains: tuple[str, ...]) -> bool:
+        """Return whether the URL host matches an ignored domain/prefix, e.g. 'www.linkedin.com' matches 'linkedin'."""
+        if not ignored_domains:
+            return False
+
+        try:
+            host = (urlparse(url).hostname or "").strip().lower()
+        except Exception:
+            return False
+
+        if not host:
+            return False
+
+        normalized_host = host.removeprefix("www.")
+        return any(normalized_host == domain or normalized_host.startswith(f"{domain}.") or normalized_host.startswith(domain) for domain in ignored_domains)
+
+    def _ignored_email_uids_state_key(self) -> str:
+        """Return the provider state key used to remember unread ignored email UIDs."""
+        return "ignored_email_uids"
+
+    def _ignored_email_uids(self) -> set[str]:
+        """Return unread ignored email UIDs already remembered in provider state."""
+        state = self.provider_state or {}
+        values = state.get(self._ignored_email_uids_state_key()) or []
+        return {str(value) for value in values if value}
+
+    def _remember_ignored_email_uid(self, uid: str) -> None:
+        """Persist an unread ignored email UID so future polls skip refetching it."""
+        if not uid:
+            return
+
+        state = self.provider_state
+        if not isinstance(state, dict):
+            return
+
+        key = self._ignored_email_uids_state_key()
+        values = state.get(key) or []
+        value_set = {str(value) for value in values if value}
+        value_set.add(str(uid))
+        state[key] = sorted(value_set)
 
     def _html_escape(self, s: str) -> str:
         """Escape text for safe HTML inclusion."""
